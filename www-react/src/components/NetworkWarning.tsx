@@ -1,14 +1,13 @@
 import { useWallet } from "@/contexts/WalletContext";
+import { network } from "@/config/networks";
 
-const EXPECTED_CHAIN_ID = 1337; // Hardhat localhost
-
-const switchToHardhat = async () => {
+const switchNetwork = async () => {
   if (!window.ethereum) return;
 
   try {
     await window.ethereum.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: "0x539" }], // 1337 in hex
+      params: [{ chainId: network.chainIdHex }],
     });
   } catch (switchError: any) {
     // Chain not added yet - add it
@@ -18,15 +17,16 @@ const switchToHardhat = async () => {
           method: "wallet_addEthereumChain",
           params: [
             {
-              chainId: "0x539",
-              chainName: "Hardhat Local",
+              chainId: network.chainIdHex,
+              chainName: network.chainName,
               nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-              rpcUrls: ["http://127.0.0.1:8545"],
+              rpcUrls: [network.rpcUrl],
+              ...(network.blockExplorer ? { blockExplorerUrls: [network.blockExplorer] } : {}),
             },
           ],
         });
       } catch (addError) {
-        console.error("Failed to add Hardhat network:", addError);
+        console.error("Failed to add network:", addError);
       }
     }
   }
@@ -35,7 +35,7 @@ const switchToHardhat = async () => {
 const NetworkWarning = () => {
   const { chainId, account } = useWallet();
 
-  if (!account || !chainId || chainId === EXPECTED_CHAIN_ID) {
+  if (!account || !chainId || chainId === network.chainId) {
     return null;
   }
 
@@ -43,10 +43,10 @@ const NetworkWarning = () => {
     <div className="sticky top-14 z-40 bg-destructive/90 backdrop-blur-sm border-b border-destructive px-4 py-2">
       <div className="container mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-white">
-          <span>Wrong network! Please switch to Hardhat Local (Chain ID: 1337)</span>
+          <span>Wrong network! Please switch to {network.chainName}</span>
         </div>
         <button
-          onClick={switchToHardhat}
+          onClick={switchNetwork}
           className="text-xs font-semibold bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-md transition-colors"
         >
           Switch Network

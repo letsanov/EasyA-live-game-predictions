@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,18 +13,26 @@ import NotFound from "./pages/NotFound";
 import { trpc } from "./lib/trpc";
 import { WalletProvider } from "./contexts/WalletContext";
 import NetworkWarning from "./components/NetworkWarning";
+import { loadNetworkConfig } from "./config/networks";
 
 const App = () => {
+  const [ready, setReady] = useState(false);
   const [queryClient] = useState(() => new QueryClient());
   const [trpcClient] = useState(() =>
     trpc.createClient({
       links: [
         httpBatchLink({
-          url: "http://localhost:3001/trpc",
+          url: "/trpc",
         }),
       ],
     })
   );
+
+  useEffect(() => {
+    loadNetworkConfig().then(() => setReady(true));
+  }, []);
+
+  if (!ready) return null;
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>

@@ -22,6 +22,16 @@ module.exports = {
     hardhat: {
       chainId: 1337,
     },
+    base: {
+      url: "https://mainnet.base.org",
+      chainId: 8453,
+      accounts: [process.env.ORACLE_PRIVATE_KEY].filter(Boolean),
+    },
+    baseSepolia: {
+      url: "https://sepolia.base.org",
+      chainId: 84532,
+      accounts: [process.env.ORACLE_PRIVATE_KEY].filter(Boolean),
+    },
   },
   paths: {
     sources: "./contracts",

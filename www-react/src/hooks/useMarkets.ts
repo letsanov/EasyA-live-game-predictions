@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useMarketContract } from './useMarketContract';
 import { useWallet } from '@/contexts/WalletContext';
 import { formatUnits } from 'ethers';
+import { network } from '@/config/networks';
 
 export interface MarketData {
   id: number;
@@ -122,7 +123,7 @@ export function useMarkets() {
   const prevSnapshotRef = useRef<Record<number, string>>({});
 
   const fetchMarkets = useCallback(async () => {
-    if (!isConnected || chainId !== 1337) {
+    if (!isConnected || chainId !== network.chainId) {
       setMarkets([]);
       setIsLoading(false);
       return;

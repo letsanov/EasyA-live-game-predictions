@@ -5,26 +5,18 @@
 
 const OPENDOTA_BASE_URL = 'https://api.opendota.com/api';
 
+// ──────────────────────────────────────────────
+// Toggle this to switch between mock and real API
+// true  = always returns a fake live game (for local dev)
+// false = hits OpenDota /live endpoint for real data
+// ──────────────────────────────────────────────
+const USE_MOCK = true;
+
 export interface PlayerSearchResult {
   account_id: number;
   personaname: string;
   avatarfull: string;
   last_match_time: string;
-}
-
-export interface RecentMatch {
-  match_id: number;
-  player_slot: number;
-  radiant_win: boolean;
-  duration: number;
-  game_mode: number;
-  lobby_type: number;
-  hero_id: number;
-  start_time: number;
-  version: number;
-  kills: number;
-  deaths: number;
-  assists: number;
 }
 
 export interface LiveGameInfo {
@@ -34,6 +26,20 @@ export interface LiveGameInfo {
   heroId: number;
   startTime: number;
   isRadiant: boolean;
+}
+
+interface OpenDotaLivePlayer {
+  account_id: number;
+  hero_id: number;
+  team: number;    // 0 = Radiant, 1 = Dire
+  team_slot: number;
+}
+
+interface OpenDotaLiveGame {
+  match_id: string;
+  activate_time: number;
+  game_time: number;
+  players: OpenDotaLivePlayer[];
 }
 
 /**
@@ -48,58 +54,52 @@ export async function searchPlayers(query: string): Promise<PlayerSearchResult[]
 }
 
 /**
- * Get recent matches for a player
+ * Check if a player is currently in a live game.
+ * Uses the OpenDota /live endpoint which returns top live games,
+ * then scans all players to find the requested account_id.
  */
-export async function getRecentMatches(accountId: number): Promise<RecentMatch[]> {
-  const response = await fetch(`${OPENDOTA_BASE_URL}/players/${accountId}/recentMatches`);
-  if (!response.ok) {
-    throw new Error(`OpenDota API error: ${response.statusText}`);
+export async function getPlayerLiveGame(accountId: number, playerName: string): Promise<LiveGameInfo | null> {
+  if (USE_MOCK) {
+    return getMockLiveGame(accountId, playerName);
   }
-  return response.json();
+
+  const response = await fetch(`${OPENDOTA_BASE_URL}/live`);
+  if (!response.ok) {
+    throw new Error(`OpenDota /live API error: ${response.statusText}`);
+  }
+
+  const liveGames: OpenDotaLiveGame[] = await response.json();
+
+  for (const game of liveGames) {
+    const player = game.players.find((p) => p.account_id === accountId);
+    if (player) {
+      return {
+        matchId: Number(game.match_id),
+        accountId,
+        playerName,
+        heroId: player.hero_id,
+        startTime: game.activate_time,
+        isRadiant: player.team === 0,
+      };
+    }
+  }
+
+  return null;
 }
 
 /**
- * Check if a player is currently in a live game
- * Returns live game info if found, null otherwise
+ * Mock: always returns a fake live game (for local development)
  */
-export async function getPlayerLiveGame(accountId: number, playerName: string): Promise<LiveGameInfo | null> {
-  // TESTING MODE: Return mock live game for any player
-  // TODO: Remove this and use real logic below for production
+function getMockLiveGame(accountId: number, playerName: string): LiveGameInfo {
   const mockMatchId = Math.floor(Math.random() * 1000000000) + 7000000000;
   return {
     matchId: mockMatchId,
     accountId,
     playerName,
-    heroId: Math.floor(Math.random() * 120) + 1, // Random hero ID
-    startTime: Math.floor(Date.now() / 1000) - (15 * 60), // Started 15 minutes ago
+    heroId: Math.floor(Math.random() * 120) + 1,
+    startTime: Math.floor(Date.now() / 1000) - 15 * 60,
     isRadiant: Math.random() > 0.5,
   };
-
-  // REAL LOGIC (currently disabled for testing):
-  // const recentMatches = await getRecentMatches(accountId);
-  //
-  // if (recentMatches.length === 0) {
-  //   return null;
-  // }
-  //
-  // const mostRecent = recentMatches[0];
-  // const now = Math.floor(Date.now() / 1000);
-  // const twoHoursAgo = now - (2 * 60 * 60);
-  //
-  // const isLive = mostRecent.start_time > twoHoursAgo && mostRecent.duration < 60;
-  //
-  // if (!isLive) {
-  //   return null;
-  // }
-  //
-  // return {
-  //   matchId: mostRecent.match_id,
-  //   accountId,
-  //   playerName,
-  //   heroId: mostRecent.hero_id,
-  //   startTime: mostRecent.start_time,
-  //   isRadiant: mostRecent.player_slot < 128,
-  // };
 }
 
 /**

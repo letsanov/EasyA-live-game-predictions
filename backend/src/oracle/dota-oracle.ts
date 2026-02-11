@@ -7,10 +7,12 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
+import { network } from '../config/networks.js';
+
 const ORACLE_PRIVATE_KEY = process.env.ORACLE_PRIVATE_KEY!;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY!;
-const RPC_URL = 'http://127.0.0.1:8545';
-const CONTRACT_ADDRESS = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
+const RPC_URL = network.rpcUrl;
+const CONTRACT_ADDRESS = network.contractAddress;
 const POLL_INTERVAL = 30_000; // 30s
 
 const MARKETS_ABI = [
