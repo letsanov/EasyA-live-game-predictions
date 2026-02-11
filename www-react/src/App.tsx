@@ -7,6 +7,7 @@ import { httpBatchLink } from "@trpc/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import MatchDetail from "./pages/MatchDetail";
+import ThreadDetail from "./pages/ThreadDetail";
 import Portfolio from "./pages/Portfolio";
 import NotFound from "./pages/NotFound";
 import { trpc } from "./lib/trpc";
@@ -36,6 +37,7 @@ const App = () => {
               <NetworkWarning />
               <Routes>
                 <Route path="/" element={<Index />} />
+                <Route path="/thread/:matchId" element={<ThreadDetail />} />
                 <Route path="/match/:id" element={<MatchDetail />} />
                 <Route path="/portfolio" element={<Portfolio />} />
                 <Route path="*" element={<NotFound />} />

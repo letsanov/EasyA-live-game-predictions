@@ -7,6 +7,8 @@ const MARKETS_ABI = [
   "function getMarketDetails(uint256 marketId) external view returns (string memory name, string[] memory outcomes, address creator, address oracle, uint256 predictionDeadline, bool isResolved, bool isCancelled, uint256 winningOutcome, uint256 totalPoolAmount, uint256 resolvedTimestamp, bool unclaimedWinningsCollected, uint256 creationTimestamp)",
   "function getMarketsPage(uint256 offset, uint256 limit) external view returns (uint256 totalMarkets, uint256[] memory ids, string[] memory names, string[][] memory outcomes, address[] memory creators, address[] memory oracles, uint256[] memory predictionDeadlines, bool[] memory isResolved, bool[] memory isCancelled, uint256[] memory winningOutcomes, uint256[] memory totalPoolAmounts, uint256[] memory resolvedTimestamps, bool[] memory unclaimedWinningsCollected, uint256[] memory creationTimestamps, uint256[][] memory poolAmounts)",
   "function getPoolAmount(uint256 marketId, uint256 outcomeIndex) external view returns (uint256)",
+  "function getUserPrediction(uint256 marketId, uint256 outcomeIndex, address user) external view returns (uint256)",
+  "function hasClaimed(address user, uint256 marketId) external view returns (bool)",
   "function makePrediction(uint256 marketId, uint256 outcomeIndex, uint256 amount) external",
   "function claimPayout(uint256 marketId) external",
 ];
@@ -124,6 +126,18 @@ export function useMarketContract() {
     await tx.wait();
   };
 
+  const getUserPrediction = async (marketId: number, outcomeIndex: number, user: string) => {
+    if (!provider) return BigInt(0);
+    const contract = new Contract(CONTRACT_ADDRESS, MARKETS_ABI, provider);
+    return await contract.getUserPrediction(marketId, outcomeIndex, user);
+  };
+
+  const hasClaimed = async (user: string, marketId: number): Promise<boolean> => {
+    if (!provider) return false;
+    const contract = new Contract(CONTRACT_ADDRESS, MARKETS_ABI, provider);
+    return await contract.hasClaimed(user, marketId);
+  };
+
   const getUSDCBalance = async () => {
     if (!account || !provider) return BigInt(0);
     const usdc = new Contract(USDC_ADDRESS, ERC20_ABI, provider);
@@ -135,6 +149,8 @@ export function useMarketContract() {
     getMarketsPage,
     makePrediction,
     claimPayout,
+    getUserPrediction,
+    hasClaimed,
     getUSDCBalance,
     isConnected: !!account,
   };

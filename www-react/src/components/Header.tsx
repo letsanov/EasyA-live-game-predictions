@@ -55,7 +55,7 @@ const Header = () => {
                 location.pathname === "/" ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Streams
+              Threads
             </Link>
             <Link
               to="/portfolio"
@@ -63,7 +63,7 @@ const Header = () => {
                 location.pathname === "/portfolio" ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Portfolio
+              My Predictions
             </Link>
           </nav>
 
@@ -75,7 +75,7 @@ const Header = () => {
               disabled={!account}
             >
               <Plus className="w-3.5 h-3.5" />
-              Create Market
+              New Prediction
             </Button>
             {account ? (
               <div className="flex items-center gap-2 bg-secondary rounded-lg px-3 py-1.5">
