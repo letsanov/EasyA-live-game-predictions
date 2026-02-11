@@ -8,6 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 const ORACLE_PRIVATE_KEY = process.env.ORACLE_PRIVATE_KEY!;
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY!;
 const RPC_URL = 'http://127.0.0.1:8545';
 const CONTRACT_ADDRESS = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
 const POLL_INTERVAL = 30_000; // 30s
@@ -38,62 +39,105 @@ function parseQuestion(marketName: string): string {
   return marketName.replace(/^(?:.+?\[\d+\](?:\s*\{.+?\})?|Match \d+):\s*/, '');
 }
 
-function determineOutcome(question: string, outcomes: string[], matchData: any): number | null {
-  const q = question.toLowerCase();
+// Trim match data to only the fields the LLM needs
+function summarizeMatchData(matchData: any): object {
+  return {
+    duration_seconds: matchData.duration,
+    duration_minutes: Math.round((matchData.duration || 0) / 60),
+    radiant_win: matchData.radiant_win,
+    radiant_score: matchData.radiant_score,
+    dire_score: matchData.dire_score,
+    total_kills: (matchData.radiant_score || 0) + (matchData.dire_score || 0),
+    first_blood_time_seconds: matchData.first_blood_time,
+    first_blood_time_minutes: matchData.first_blood_time != null
+      ? +(matchData.first_blood_time / 60).toFixed(1)
+      : null,
+    objectives: (matchData.objectives || [])
+      .filter((o: any) => o.type === 'building_kill' && o.key?.includes('tower'))
+      .slice(0, 5)
+      .map((o: any) => ({
+        type: o.type,
+        key: o.key,
+        time: o.time,
+        team: o.player_slot < 128 ? 'radiant' : 'dire',
+      })),
+  };
+}
 
-  // "First blood before 5 minutes?" → Yes/No
-  if (q.includes('first blood')) {
-    const fbTime = matchData.first_blood_time ?? 999;
-    const minuteMatch = q.match(/before (\d+) minutes/);
-    const threshold = minuteMatch ? Number(minuteMatch[1]) * 60 : 5 * 60;
-    return fbTime < threshold ? 0 : 1;
+async function askLLM(question: string, outcomes: string[], matchSummary: object): Promise<{ outcome: number; reasoning: string } | null> {
+  const prompt = `You are a Dota 2 match oracle. Given match data and a prediction market question, determine which outcome won.
+
+MATCH DATA:
+${JSON.stringify(matchSummary, null, 2)}
+
+QUESTION: "${question}"
+OUTCOMES: ${outcomes.map((o, i) => `${i}="${o}"`).join(', ')}
+
+Based on the match data, which outcome index won? Reply with ONLY a JSON object: {"outcome": <index>, "reasoning": "<brief explanation>"}`;
+
+  console.log(`[Oracle/LLM] ── REQUEST ──`);
+  console.log(`[Oracle/LLM] Question: "${question}"`);
+  console.log(`[Oracle/LLM] Outcomes: ${outcomes.map((o, i) => `${i}="${o}"`).join(', ')}`);
+  console.log(`[Oracle/LLM] Match data: ${JSON.stringify(matchSummary)}`);
+
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.0-flash-001',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 150,
+      temperature: 0,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`OpenRouter API error ${res.status}: ${text}`);
   }
 
-  // "Which team gets first tower?" → Radiant/Dire
-  if (q.includes('first tower')) {
-    // OpenDota objectives array: look for first "building_kill" with key containing "tower"
-    const objectives = matchData.objectives || [];
-    const firstTower = objectives.find((obj: any) =>
-      obj.type === 'building_kill' && obj.key?.includes('tower')
-    );
-    if (firstTower) {
-      // player_slot < 128 = radiant
-      return firstTower.player_slot < 128 ? 0 : 1;
-    }
-    // Fallback: team that won likely got first tower
-    return matchData.radiant_win ? 0 : 1;
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content?.trim();
+
+  if (!content) {
+    console.log(`[Oracle/LLM] ── RESPONSE: empty ──`);
+    return null;
   }
 
-  // "Which team wins?" → Radiant/Dire
-  if (q.includes('which team wins') || q.includes('who wins')) {
-    return matchData.radiant_win ? 0 : 1;
+  console.log(`[Oracle/LLM] ── RESPONSE ──`);
+  console.log(`[Oracle/LLM] Raw: ${content}`);
+
+  // Parse JSON from response (handle markdown code blocks)
+  const jsonMatch = content.match(/\{[\s\S]*?\}/);
+  if (!jsonMatch) {
+    console.log(`[Oracle/LLM] ⚠ Could not parse JSON`);
+    return null;
   }
 
-  // "Game ends before N minutes?" → Yes/No
-  if (q.includes('ends before') || q.includes('before') && q.includes('minutes')) {
-    const minuteMatch = q.match(/before (\d+) minutes/);
-    const threshold = minuteMatch ? Number(minuteMatch[1]) : 45;
-    const durationMinutes = (matchData.duration || 0) / 60;
-    return durationMinutes < threshold ? 0 : 1;
+  const parsed = JSON.parse(jsonMatch[0]);
+  const outcomeIndex = parsed.outcome;
+
+  if (typeof outcomeIndex !== 'number' || outcomeIndex < 0 || outcomeIndex >= outcomes.length) {
+    console.log(`[Oracle/LLM] ⚠ Invalid outcome index: ${outcomeIndex}`);
+    return null;
   }
 
-  // "Total kills in game?" → thresholds like 10+, 30+, 50+, 100+, 150+
-  if (q.includes('total kills')) {
-    const totalKills = (matchData.radiant_score || 0) + (matchData.dire_score || 0);
-    const thresholds = outcomes.map(o => parseInt(o.replace('+', '')));
-    let winner = 0;
-    for (let i = thresholds.length - 1; i >= 0; i--) {
-      if (totalKills >= thresholds[i]) { winner = i; break; }
-    }
-    return winner;
-  }
-
-  return null;
+  console.log(`[Oracle/LLM] Decision: ${outcomeIndex} = "${outcomes[outcomeIndex]}"`);
+  console.log(`[Oracle/LLM] Reasoning: ${parsed.reasoning}`);
+  console.log(`[Oracle/LLM] ────────────`);
+  return { outcome: outcomeIndex, reasoning: parsed.reasoning };
 }
 
 async function main() {
   if (!ORACLE_PRIVATE_KEY) {
     console.error('ORACLE_PRIVATE_KEY not set in .env');
+    process.exit(1);
+  }
+  if (!OPENROUTER_API_KEY) {
+    console.error('OPENROUTER_API_KEY not set in .env');
     process.exit(1);
   }
 
@@ -103,9 +147,9 @@ async function main() {
 
   console.log(`[Oracle] Started with address: ${wallet.address}`);
   console.log(`[Oracle] Contract: ${CONTRACT_ADDRESS}`);
+  console.log(`[Oracle] LLM: google/gemini-2.0-flash-001 via OpenRouter`);
   console.log(`[Oracle] Polling every ${POLL_INTERVAL / 1000}s\n`);
 
-  // Track resolved markets so we don't re-fetch match data
   const resolvedCache = new Set<number>();
 
   async function poll() {
@@ -123,7 +167,6 @@ async function main() {
         isCancelled: result.isCancelled[i],
       }));
 
-      // Filter to unresolved markets past deadline where we are the oracle
       const pending = markets.filter(m =>
         !m.isResolved &&
         !m.isCancelled &&
@@ -152,29 +195,31 @@ async function main() {
           console.log(`[Oracle] Fetching match ${matchId} from OpenDota...`);
           const matchData = await getMatchDetails(Number(matchId));
 
-          // Check if match is actually finished (has duration)
           if (!matchData || !matchData.duration) {
             console.log(`[Oracle] Match ${matchId}: not finished yet, skipping`);
             continue;
           }
 
+          const summary = summarizeMatchData(matchData);
           console.log(`[Oracle] Match ${matchId}: duration=${Math.floor(matchData.duration / 60)}m, radiant_win=${matchData.radiant_win}, kills=${(matchData.radiant_score || 0) + (matchData.dire_score || 0)}`);
 
           for (const market of matchMarkets) {
-            // Check if deadline has passed (contract requires this)
             if (now < market.predictionDeadline) {
               console.log(`[Oracle] Market ${market.id}: deadline not reached yet (${Math.floor((market.predictionDeadline - now) / 60)}m left)`);
               continue;
             }
 
             const question = parseQuestion(market.name);
-            const outcomeIndex = determineOutcome(question, market.outcomes, matchData);
 
-            if (outcomeIndex === null) {
-              console.log(`[Oracle] Market ${market.id}: can't determine outcome for "${question}"`);
+            console.log(`[Oracle] Asking LLM for market ${market.id}: "${question}"`);
+            const llmResult = await askLLM(question, market.outcomes, summary);
+
+            if (llmResult === null) {
+              console.log(`[Oracle] Market ${market.id}: LLM could not determine outcome`);
               continue;
             }
 
+            const outcomeIndex = llmResult.outcome;
             console.log(`[Oracle] Resolving market ${market.id}: "${question}" → ${market.outcomes[outcomeIndex]} (index ${outcomeIndex})`);
 
             try {
@@ -200,10 +245,7 @@ async function main() {
     }
   }
 
-  // Initial poll
   await poll();
-
-  // Loop
   setInterval(poll, POLL_INTERVAL);
 }
 

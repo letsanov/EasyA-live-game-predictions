@@ -10,6 +10,7 @@
     "indexer:continuous:init": "tsx src/indexer/continuous-init.ts",
     "oracle:continuous": "tsx watch src/oracle/continuous-oracle.ts",
     "oracle:dota": "tsx watch src/oracle/dota-oracle.ts",
+    "oracle:backtest": "tsx src/oracle/backtest.ts",
     "oracle:ml-dota": "tsx watch src/oracle/ml-dota-oracle-runner.ts",
     "scheduler:tick": "tsx src/scheduler/tick.ts",
     "scheduler": "while true; do npm run scheduler:tick; sleep 60; done",
