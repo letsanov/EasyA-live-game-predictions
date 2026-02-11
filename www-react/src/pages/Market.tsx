@@ -1,19 +1,12 @@
 import { Link, useParams } from 'react-router-dom';
+import Header from '../components/Header';
 
 export default function Market() {
   const { marketId } = useParams();
 
   return (
     <div>
-      {/* Header */}
-      <header className="header">
-        <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <h1>🎮 Live Game Predictions</h1>
-        </Link>
-        <div className="header-actions">
-          <button className="btn btn-secondary">Connect Wallet</button>
-        </div>
-      </header>
+      <Header />
 
       {/* Main Content */}
       <div className="container">

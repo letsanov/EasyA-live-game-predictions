@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import ConnectWallet from './ConnectWallet';
 
 interface HeaderProps {
   showCreateButton?: boolean;
@@ -16,7 +17,7 @@ export default function Header({ showCreateButton = true }: HeaderProps) {
             <button className="btn btn-primary">Create Market</button>
           </Link>
         )}
-        <button className="btn btn-secondary">Connect Wallet</button>
+        <ConnectWallet />
       </div>
     </header>
   );

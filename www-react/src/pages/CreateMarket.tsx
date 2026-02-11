@@ -1,20 +1,10 @@
 import { Link } from 'react-router-dom';
+import Header from '../components/Header';
 
 export default function CreateMarket() {
   return (
     <div>
-      {/* Header */}
-      <header className="header">
-        <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <h1>🎮 Live Game Predictions</h1>
-        </Link>
-        <div className="header-actions">
-          <Link to="/">
-            <button className="btn btn-secondary">Cancel</button>
-          </Link>
-          <button className="btn btn-secondary">Connect Wallet</button>
-        </div>
-      </header>
+      <Header showCreateButton={false} />
 
       {/* Main Content */}
       <div className="container">

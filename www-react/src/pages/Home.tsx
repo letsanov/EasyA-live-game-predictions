@@ -1,18 +1,10 @@
 import { Link } from 'react-router-dom';
+import Header from '../components/Header';
 
 export default function Home() {
   return (
     <div>
-      {/* Header */}
-      <header className="header">
-        <h1>🎮 Live Game Predictions</h1>
-        <div className="header-actions">
-          <Link to="/create">
-            <button className="btn btn-primary">Create Market</button>
-          </Link>
-          <button className="btn btn-secondary">Connect Wallet</button>
-        </div>
-      </header>
+      <Header />
 
       {/* Main Content */}
       <div className="container">
