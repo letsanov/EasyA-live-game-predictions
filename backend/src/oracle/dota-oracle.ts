@@ -1,8 +1,11 @@
 import { ethers } from 'ethers';
 import { getMatchDetails } from '../services/opendota.js';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 const ORACLE_PRIVATE_KEY = process.env.ORACLE_PRIVATE_KEY!;
 const RPC_URL = 'http://127.0.0.1:8545';
@@ -38,31 +41,51 @@ function parseQuestion(marketName: string): string {
 function determineOutcome(question: string, outcomes: string[], matchData: any): number | null {
   const q = question.toLowerCase();
 
-  // "Game ends before 45 minutes?" → Yes/No
-  if (q.includes('before 45 minutes') || q.includes('ends before')) {
-    const durationMinutes = (matchData.duration || 0) / 60;
-    return durationMinutes < 45 ? 0 : 1;
+  // "First blood before 5 minutes?" → Yes/No
+  if (q.includes('first blood')) {
+    const fbTime = matchData.first_blood_time ?? 999;
+    const minuteMatch = q.match(/before (\d+) minutes/);
+    const threshold = minuteMatch ? Number(minuteMatch[1]) * 60 : 5 * 60;
+    return fbTime < threshold ? 0 : 1;
   }
 
-  // "Total kills in game?" → thresholds like 10+, 30+, 50+, 100+, 150+
-  if (q.includes('total kills')) {
-    const totalKills = (matchData.radiant_score || 0) + (matchData.dire_score || 0);
-    // Parse thresholds from outcome labels
-    const thresholds = outcomes.map(o => parseInt(o.replace('+', '')));
-    // Find the highest threshold that was met
-    let winner = 0;
-    for (let i = thresholds.length - 1; i >= 0; i--) {
-      if (totalKills >= thresholds[i]) {
-        winner = i;
-        break;
-      }
+  // "Which team gets first tower?" → Radiant/Dire
+  if (q.includes('first tower')) {
+    // OpenDota objectives array: look for first "building_kill" with key containing "tower"
+    const objectives = matchData.objectives || [];
+    const firstTower = objectives.find((obj: any) =>
+      obj.type === 'building_kill' && obj.key?.includes('tower')
+    );
+    if (firstTower) {
+      // player_slot < 128 = radiant
+      return firstTower.player_slot < 128 ? 0 : 1;
     }
-    return winner;
+    // Fallback: team that won likely got first tower
+    return matchData.radiant_win ? 0 : 1;
   }
 
   // "Which team wins?" → Radiant/Dire
   if (q.includes('which team wins') || q.includes('who wins')) {
     return matchData.radiant_win ? 0 : 1;
+  }
+
+  // "Game ends before N minutes?" → Yes/No
+  if (q.includes('ends before') || q.includes('before') && q.includes('minutes')) {
+    const minuteMatch = q.match(/before (\d+) minutes/);
+    const threshold = minuteMatch ? Number(minuteMatch[1]) : 45;
+    const durationMinutes = (matchData.duration || 0) / 60;
+    return durationMinutes < threshold ? 0 : 1;
+  }
+
+  // "Total kills in game?" → thresholds like 10+, 30+, 50+, 100+, 150+
+  if (q.includes('total kills')) {
+    const totalKills = (matchData.radiant_score || 0) + (matchData.dire_score || 0);
+    const thresholds = outcomes.map(o => parseInt(o.replace('+', '')));
+    let winner = 0;
+    for (let i = thresholds.length - 1; i >= 0; i--) {
+      if (totalKills >= thresholds[i]) { winner = i; break; }
+    }
+    return winner;
   }
 
   return null;
@@ -155,7 +178,8 @@ async function main() {
             console.log(`[Oracle] Resolving market ${market.id}: "${question}" → ${market.outcomes[outcomeIndex]} (index ${outcomeIndex})`);
 
             try {
-              const tx = await contract.resolveMarket(market.id, outcomeIndex);
+              const nonce = await wallet.getNonce();
+              const tx = await contract.resolveMarket(market.id, outcomeIndex, { nonce });
               await tx.wait();
               resolvedCache.add(market.id);
               console.log(`[Oracle] ✅ Market ${market.id} resolved!`);
