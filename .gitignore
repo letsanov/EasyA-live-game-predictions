@@ -1,0 +1,19 @@
+# Ingore npm, coverage, and typechain.
+node_modules
+logs/
+coverage
+coverage.json
+typechain
+typechain-types
+
+# Ignore hardhat files.
+cache
+artifacts
+
+# Ignore localhost deployments (keep production deployments)
+deployments/*
+
+# Ignore all hidden files.
+.env
+.env.production
+.npmignore
