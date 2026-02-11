@@ -1,27 +1,30 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Index from "./pages/Index";
+import MatchDetail from "./pages/MatchDetail";
+import Portfolio from "./pages/Portfolio";
+import NotFound from "./pages/NotFound";
 
-// Contexts
-import { WalletProvider } from './contexts/WalletContext';
+const queryClient = new QueryClient();
 
-// Pages
-import Home from './pages/Home';
-import CreateMarket from './pages/CreateMarket';
-import Market from './pages/Market';
-
-function App() {
-  return (
-    <WalletProvider>
-      <Router>
-        <div className="app">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/create" element={<CreateMarket />} />
-            <Route path="/market/:marketId" element={<Market />} />
-          </Routes>
-        </div>
-      </Router>
-    </WalletProvider>
-  );
-}
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/match/:id" element={<MatchDetail />} />
+          <Route path="/portfolio" element={<Portfolio />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;
