@@ -1,7 +1,7 @@
 {
-  "name": "wincoins-monorepo",
+  "name": "prediction-market-scaffold",
   "version": "1.0.0",
-  "description": "WinCoins Prediction Market Platform",
+  "description": "Full-stack Prediction Market Platform Scaffold",
   "private": true,
   "workspaces": [
     "www-react",

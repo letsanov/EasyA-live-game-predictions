@@ -1,5 +1,5 @@
 {
-  "name": "@wincoins/backend",
+  "name": "@prediction-market/backend",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
