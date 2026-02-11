@@ -1,13 +1,41 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Wallet, Flame, Plus } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import CreateMarketModal from "@/components/CreateMarketModal";
+import { useWallet } from "@/contexts/WalletContext";
+import { useMarketContract } from "@/hooks/useMarketContract";
+import { formatUnits } from "ethers";
 
 const Header = () => {
   const location = useLocation();
-  const balance = 247.50;
+  const { account, connect, isConnecting } = useWallet();
+  const { getUSDCBalance } = useMarketContract();
   const [createOpen, setCreateOpen] = useState(false);
+  const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
+
+  const truncateAddress = (address: string) =>
+    `${address.slice(0, 6)}...${address.slice(-4)}`;
+
+  useEffect(() => {
+    if (!account) {
+      setUsdcBalance(null);
+      return;
+    }
+
+    const fetchBalance = async () => {
+      try {
+        const balance = await getUSDCBalance();
+        setUsdcBalance(formatUnits(balance, 6));
+      } catch {
+        // Likely wrong network - silently ignore
+      }
+    };
+
+    fetchBalance();
+    const interval = setInterval(fetchBalance, 5000);
+    return () => clearInterval(interval);
+  }, [account]);
 
   return (
     <>
@@ -44,14 +72,35 @@ const Header = () => {
               size="sm"
               onClick={() => setCreateOpen(true)}
               className="gap-1.5 text-xs"
+              disabled={!account}
             >
               <Plus className="w-3.5 h-3.5" />
               Create Market
             </Button>
-            <div className="flex items-center gap-2 bg-secondary rounded-lg px-3 py-1.5">
-              <Wallet className="w-4 h-4 text-primary" />
-              <span className="font-mono font-semibold text-sm text-foreground">${balance.toFixed(2)}</span>
-            </div>
+            {account ? (
+              <div className="flex items-center gap-2 bg-secondary rounded-lg px-3 py-1.5">
+                <Wallet className="w-4 h-4 text-primary" />
+                {usdcBalance !== null && (
+                  <span className="font-mono font-semibold text-sm text-primary">
+                    ${Number(usdcBalance).toLocaleString()}
+                  </span>
+                )}
+                <span className="font-mono text-xs text-muted-foreground">
+                  {truncateAddress(account)}
+                </span>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                onClick={connect}
+                disabled={isConnecting}
+                variant="secondary"
+                className="gap-1.5 text-xs"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                {isConnecting ? "Connecting..." : "Connect Wallet"}
+              </Button>
+            )}
           </div>
         </div>
       </header>

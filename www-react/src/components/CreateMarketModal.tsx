@@ -9,38 +9,44 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Search,
   Loader2,
   Gamepad2,
-  Clock,
   CheckCircle2,
   Swords,
-  Zap,
   AlertCircle,
 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { useMarketContract } from "@/hooks/useMarketContract";
+import { useWallet } from "@/contexts/WalletContext";
+import { parseUnits } from "ethers";
+import { toast } from "sonner";
 
-// Mock player database — simulates backend API
-const MOCK_PLAYERS = [
-  { id: "p1", name: "Gorgc", steamId: "76561198045058569", avatar: "🧔", inGame: true, hero: "Pudge", matchId: "7890123456", gameTime: "24:15", mmr: 7800 },
-  { id: "p2", name: "Arteezy", steamId: "76561198047100148", avatar: "👑", inGame: true, hero: "Naga Siren", matchId: "7890123457", gameTime: "31:02", mmr: 9200 },
-  { id: "p3", name: "Bulldog", steamId: "76561198053098388", avatar: "🐻", inGame: false, hero: null, matchId: null, gameTime: null, mmr: 6500 },
-  { id: "p4", name: "Topson", steamId: "76561198085809832", avatar: "🌀", inGame: true, hero: "Invoker", matchId: "7890123458", gameTime: "08:44", mmr: 9800 },
-  { id: "p5", name: "N0tail", steamId: "76561198047004422", avatar: "🌻", inGame: false, hero: null, matchId: null, gameTime: null, mmr: 7200 },
-  { id: "p6", name: "Cr1t-", steamId: "76561198071638931", avatar: "⚡", inGame: true, hero: "Earth Spirit", matchId: "7890123459", gameTime: "17:30", mmr: 9500 },
-  { id: "p7", name: "SumaiL", steamId: "76561198094352633", avatar: "👶", inGame: false, hero: null, matchId: null, gameTime: null, mmr: 8900 },
-  { id: "p8", name: "MidOne", steamId: "76561198073949692", avatar: "🎯", inGame: true, hero: "Storm Spirit", matchId: "7890123460", gameTime: "42:18", mmr: 8600 },
-];
+interface Player {
+  account_id: number;
+  personaname: string;
+  avatarfull: string;
+  inGame: boolean;
+  matchId?: number;
+  heroId?: number;
+  gameTime?: string;
+}
 
-type MockPlayer = (typeof MOCK_PLAYERS)[number];
-
-const MARKET_TEMPLATES = [
-  "Will {player} win this game?",
-  "{player} gets more than 15 kills?",
-  "{player} dies fewer than 5 times?",
-  "Game ends before 30 minutes?",
-  "{player} gets a rampage?",
+// Auto-generated markets for each match
+const generateMarketsForMatch = (matchId: number, playerName: string) => [
+  {
+    name: `Match ${matchId}: Game ends before 45 minutes?`,
+    outcomes: ["Yes", "No"],
+  },
+  {
+    name: `Match ${matchId}: Total kills in game?`,
+    outcomes: ["10+", "30+", "50+", "100+", "150+"],
+  },
+  {
+    name: `Match ${matchId}: Which team wins?`,
+    outcomes: ["Radiant", "Dire"],
+  },
 ];
 
 interface CreateMarketModalProps {
@@ -50,61 +56,94 @@ interface CreateMarketModalProps {
 
 const CreateMarketModal = ({ open, onOpenChange }: CreateMarketModalProps) => {
   const [search, setSearch] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [results, setResults] = useState<MockPlayer[]>([]);
-  const [selectedPlayer, setSelectedPlayer] = useState<MockPlayer | null>(null);
-  const [marketQuestion, setMarketQuestion] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [step, setStep] = useState<"search" | "create">("search");
+  const [isCreating, setIsCreating] = useState(false);
 
-  // Simulate API search with debounce
+  const { account } = useWallet();
+  const { createMarket } = useMarketContract();
+
+  // Debounce search input
   useEffect(() => {
-    if (search.length < 2) {
-      setResults([]);
-      return;
-    }
-    setSearching(true);
     const timer = setTimeout(() => {
-      const found = MOCK_PLAYERS.filter((p) =>
-        p.name.toLowerCase().includes(search.toLowerCase())
-      );
-      setResults(found);
-      setSearching(false);
-    }, 600);
+      setDebouncedSearch(search);
+    }, 500);
+
     return () => clearTimeout(timer);
   }, [search]);
 
-  const handleSelectPlayer = (player: MockPlayer) => {
-    setSelectedPlayer(player);
-    if (player.inGame) {
+  const searchQuery = trpc.players.search.useQuery(
+    { query: debouncedSearch },
+    { enabled: debouncedSearch.length >= 2 }
+  );
+
+  const results = searchQuery.data || [];
+  const searching = searchQuery.isLoading;
+
+  const handleSelectPlayer = async (player: any) => {
+    // Check if player is in live game
+    const liveGame = await fetch(`http://localhost:3001/trpc/players.checkLiveGame?input=${encodeURIComponent(JSON.stringify({ accountId: player.account_id, playerName: player.personaname }))}`).then(r => r.json());
+
+    const playerWithGame: Player = {
+      ...player,
+      inGame: !!liveGame.result?.data,
+      matchId: liveGame.result?.data?.matchId,
+      heroId: liveGame.result?.data?.heroId,
+    };
+
+    setSelectedPlayer(playerWithGame);
+    if (playerWithGame.inGame) {
       setStep("create");
-      setMarketQuestion(`Will ${player.name} win this game?`);
     }
   };
 
   const handleBack = () => {
     setStep("search");
     setSelectedPlayer(null);
-    setMarketQuestion("");
   };
 
-  const handleCreate = () => {
-    // Would call backend API here
-    onOpenChange(false);
-    // Reset state
-    setSearch("");
-    setResults([]);
-    setSelectedPlayer(null);
-    setMarketQuestion("");
-    setStep("search");
+  const handleCreate = async () => {
+    if (!selectedPlayer?.matchId || !account) return;
+
+    setIsCreating(true);
+    try {
+      const markets = generateMarketsForMatch(selectedPlayer.matchId, selectedPlayer.personaname);
+      const predictionDuration = 2 * 60 * 60; // 2 hours
+      const seedAmount = parseUnits("1", 6); // 1 USDC (6 decimals)
+
+      // Create all 3 markets
+      for (const market of markets) {
+        await createMarket(
+          market.name,
+          market.outcomes,
+          predictionDuration,
+          account, // Use connected wallet as oracle for now
+          seedAmount
+        );
+      }
+
+      toast.success('3 markets created successfully!');
+      onOpenChange(false);
+
+      // Reset state
+      setSearch("");
+      setSelectedPlayer(null);
+      setStep("search");
+    } catch (error) {
+      console.error('Failed to create markets:', error);
+      toast.error('Failed to create markets. Check console for details.');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleClose = (isOpen: boolean) => {
     onOpenChange(isOpen);
     if (!isOpen) {
       setSearch("");
-      setResults([]);
+      setDebouncedSearch("");
       setSelectedPlayer(null);
-      setMarketQuestion("");
       setStep("search");
     }
   };
@@ -147,65 +186,38 @@ const CreateMarketModal = ({ open, onOpenChange }: CreateMarketModalProps) => {
               )}
               {results.map((player) => (
                 <button
-                  key={player.id}
+                  key={player.account_id}
                   onClick={() => handleSelectPlayer(player)}
                   className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-secondary/80 group"
                 >
                   {/* Avatar */}
-                  <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-lg shrink-0">
-                    {player.avatar}
-                  </div>
+                  <img
+                    src={player.avatarfull}
+                    alt={player.personaname}
+                    className="w-9 h-9 rounded-full bg-secondary shrink-0"
+                  />
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-sm text-foreground">
-                        {player.name}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        {player.mmr} MMR
+                        {player.personaname}
                       </span>
                     </div>
 
-                    {player.inGame ? (
-                      <div className="flex items-center gap-1.5 text-[11px]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--yes))] animate-pulse" />
-                        <span className="text-[hsl(var(--yes))] font-medium">
-                          In Game
-                        </span>
-                        <span className="text-muted-foreground">
-                          — {player.hero}
-                        </span>
-                        <span className="text-muted-foreground/60">
-                          {player.gameTime}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
-                        Offline
-                      </div>
-                    )}
+                    <div className="text-[11px] text-muted-foreground font-mono">
+                      ID: {player.account_id}
+                    </div>
                   </div>
 
                   {/* Status badge */}
-                  {player.inGame ? (
-                    <Badge
-                      variant="secondary"
-                      className="bg-[hsl(var(--yes))]/15 text-[hsl(var(--yes))] border-0 text-[10px] shrink-0"
-                    >
-                      <Gamepad2 className="w-3 h-3 mr-1" />
-                      LIVE
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="secondary"
-                      className="bg-muted text-muted-foreground border-0 text-[10px] shrink-0"
-                    >
-                      <Clock className="w-3 h-3 mr-1" />
-                      OFFLINE
-                    </Badge>
-                  )}
+                  <Badge
+                    variant="secondary"
+                    className="bg-muted text-muted-foreground border-0 text-[10px] shrink-0"
+                  >
+                    <Search className="w-3 h-3 mr-1" />
+                    CHECK
+                  </Badge>
                 </button>
               ))}
             </div>
@@ -215,7 +227,7 @@ const CreateMarketModal = ({ open, onOpenChange }: CreateMarketModalProps) => {
               <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 p-3">
                 <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                 <div className="text-xs text-destructive">
-                  <span className="font-semibold">{selectedPlayer.name}</span> is
+                  <span className="font-semibold">{selectedPlayer.personaname}</span> is
                   not currently in a game. Markets can only be created on active
                   matches.
                 </div>
@@ -238,18 +250,20 @@ const CreateMarketModal = ({ open, onOpenChange }: CreateMarketModalProps) => {
             {/* Player card */}
             <div className="rounded-lg bg-secondary/50 border border-border p-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-xl">
-                  {selectedPlayer.avatar}
-                </div>
+                <img
+                  src={selectedPlayer.avatarfull}
+                  alt={selectedPlayer.personaname}
+                  className="w-10 h-10 rounded-full bg-secondary"
+                />
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-sm text-foreground">
-                      {selectedPlayer.name}
+                      {selectedPlayer.personaname}
                     </span>
                     <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--yes))] animate-pulse" />
                   </div>
                   <div className="text-[11px] text-muted-foreground">
-                    Playing <span className="text-foreground/80 font-medium">{selectedPlayer.hero}</span> · {selectedPlayer.gameTime} elapsed
+                    Playing live match
                   </div>
                 </div>
                 <div className="text-right">
@@ -259,41 +273,32 @@ const CreateMarketModal = ({ open, onOpenChange }: CreateMarketModalProps) => {
               </div>
             </div>
 
-            {/* Market question */}
+            {/* Auto-generated markets */}
             <div className="space-y-2">
               <label className="text-xs font-medium text-foreground">
-                Market Question
+                3 Markets Will Be Created
               </label>
-              <Textarea
-                value={marketQuestion}
-                onChange={(e) => setMarketQuestion(e.target.value)}
-                placeholder="e.g., Will Gorgc win this game?"
-                className="bg-secondary border-border resize-none h-20"
-              />
-              <div className="flex flex-wrap gap-1.5">
-                {MARKET_TEMPLATES.map((tpl) => {
-                  const q = tpl.replace("{player}", selectedPlayer.name);
-                  return (
-                    <button
-                      key={tpl}
-                      onClick={() => setMarketQuestion(q)}
-                      className="text-[10px] px-2 py-1 rounded-full bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground transition-colors border border-border"
-                    >
-                      {q}
-                    </button>
-                  );
-                })}
+              <div className="space-y-2">
+                {selectedPlayer.matchId && generateMarketsForMatch(selectedPlayer.matchId, selectedPlayer.personaname).map((market, i) => (
+                  <div key={i} className="rounded-lg bg-secondary/50 border border-border p-3">
+                    <div className="text-xs font-semibold text-foreground mb-1">
+                      {market.name}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {market.outcomes.map((outcome) => (
+                        <span
+                          key={outcome}
+                          className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"
+                        >
+                          {outcome}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-
-            {/* Initial price info */}
-            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
-              <div className="flex items-center gap-2 mb-1">
-                <Zap className="w-3.5 h-3.5 text-primary" />
-                <span className="text-xs font-semibold text-foreground">Market starts at 50/50</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                All outcomes start at equal probability. Prices move as people trade.
+              <p className="text-[10px] text-muted-foreground">
+                Each market will be seeded with 1 USDC on the first outcome
               </p>
             </div>
 
@@ -302,17 +307,27 @@ const CreateMarketModal = ({ open, onOpenChange }: CreateMarketModalProps) => {
               <Button
                 variant="secondary"
                 onClick={handleBack}
+                disabled={isCreating}
                 className="flex-1"
               >
                 Back
               </Button>
               <Button
                 onClick={handleCreate}
-                disabled={marketQuestion.trim().length < 10}
+                disabled={isCreating}
                 className="flex-1 gap-2"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                Create Market
+                {isCreating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    Create 3 Markets
+                  </>
+                )}
               </Button>
             </div>
           </div>

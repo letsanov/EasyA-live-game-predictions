@@ -1,63 +1,117 @@
-import { useState } from "react";
 import Header from "@/components/Header";
+import { useMarkets } from "@/hooks/useMarkets";
+import { useWallet } from "@/contexts/WalletContext";
 import { MOCK_STREAMS } from "@/lib/types";
-import type { Stream } from "@/lib/types";
-import { Zap, Eye, ArrowRight, TrendingUp, Users } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Swords, TrendingUp, Clock, Loader2, Eye } from "lucide-react";
 import { Link } from "react-router-dom";
+import { formatUnits } from "ethers";
 
-const platformColors: Record<string, string> = {
-  twitch: "bg-[hsl(263,70%,58%)]",
-  youtube: "bg-destructive",
-  kick: "bg-[hsl(145,70%,45%)]",
-};
+// Reference mock stream (Gorgc)
+const MOCK_STREAM = MOCK_STREAMS[0];
 
-const StreamCard = ({ stream }: { stream: Stream }) => {
-  const isLive = stream.status === "live";
-  return (
-    <Link to={`/match/${stream.id}`} className="block group">
-      <div className="rounded-xl border border-border bg-card p-5 h-full transition-all duration-300 hover:border-glow group-hover:glow-primary flex flex-col">
-        {/* Streamer header */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-xl shrink-0">
-            {stream.streamer.avatar}
+const MockStreamCard = () => (
+  <Link to={`/match/${MOCK_STREAM.id}`} className="block group">
+    <div className="rounded-xl border border-border bg-card p-5 h-full transition-all duration-300 hover:border-glow group-hover:glow-primary flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{MOCK_STREAM.streamer.avatar}</span>
+          <div>
+            <span className="text-xs font-semibold text-foreground">{MOCK_STREAM.streamer.name}</span>
+            <span className="text-[10px] text-muted-foreground ml-2">{MOCK_STREAM.game}</span>
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm text-foreground truncate">{stream.streamer.name}</span>
-              <span className={`w-2 h-2 rounded-full shrink-0 ${isLive ? "bg-destructive animate-pulse" : "bg-muted-foreground/40"}`} />
-            </div>
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-              <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 text-white border-0 ${platformColors[stream.streamer.platform]}`}>
-                {stream.streamer.platform}
-              </Badge>
-              <span className="truncate">{stream.game}</span>
-            </div>
-          </div>
-          {isLive && stream.viewers && (
-            <span className="flex items-center gap-1 text-[11px] text-destructive font-medium shrink-0">
-              <Eye className="w-3 h-3" />
-              {stream.viewers > 1000 ? `${(stream.viewers / 1000).toFixed(1)}k` : stream.viewers}
+        </div>
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-[hsl(var(--yes))]">
+          <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--yes))] animate-pulse" />
+          LIVE
+        </span>
+      </div>
+
+      {/* Title */}
+      <p className="text-sm font-semibold text-foreground mb-4 line-clamp-2 leading-relaxed flex-1">
+        {MOCK_STREAM.title}
+      </p>
+
+      {/* Markets preview */}
+      <div className="space-y-1.5 mb-4">
+        {MOCK_STREAM.markets.slice(0, 3).map((market) => (
+          <div key={market.id} className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-1.5">
+            <span className="text-xs text-foreground/80 truncate mr-2">{market.question}</span>
+            <span className="text-[10px] font-mono font-semibold text-primary shrink-0">
+              {market.outcomes.length} opts
             </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between pt-3 border-t border-border">
+        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <TrendingUp className="w-3 h-3" />
+            ${MOCK_STREAM.totalVolume.toLocaleString()} vol
+          </span>
+          <span className="flex items-center gap-1">
+            <Eye className="w-3 h-3" />
+            {MOCK_STREAM.viewers?.toLocaleString()} viewers
+          </span>
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {MOCK_STREAM.markets.length} markets
+          </span>
+        </div>
+      </div>
+    </div>
+  </Link>
+);
+
+const MarketCard = ({ market }: { market: any }) => {
+  const now = Math.floor(Date.now() / 1000);
+  const isOpen = now < market.predictionDeadline && !market.isResolved && !market.isCancelled;
+  const totalPool = Number(formatUnits(market.totalPoolAmount, 6));
+
+  return (
+    <Link to={`/match/${market.id}`} className="block group">
+      <div className="rounded-xl border border-border bg-card p-5 h-full transition-all duration-300 hover:border-glow group-hover:glow-primary flex flex-col">
+        {/* Status */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Swords className="w-4 h-4 text-primary" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Market #{market.id}
+            </span>
+          </div>
+          {isOpen ? (
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-[hsl(var(--yes))]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--yes))] animate-pulse" />
+              OPEN
+            </span>
+          ) : (
+            <span className="text-[10px] font-semibold text-muted-foreground">CLOSED</span>
           )}
         </div>
 
-        {/* Stream title */}
-        <p className="text-sm text-foreground/80 mb-4 line-clamp-2 leading-relaxed">{stream.title}</p>
+        {/* Question */}
+        <p className="text-sm font-semibold text-foreground mb-4 line-clamp-2 leading-relaxed flex-1">
+          {market.name}
+        </p>
 
-        {/* Hot markets preview */}
-        <div className="space-y-2 mb-4 flex-1">
-          {stream.markets.slice(0, 2).map((market) => {
-            const top = market.outcomes[0];
+        {/* Outcomes */}
+        <div className="space-y-1.5 mb-4">
+          {market.outcomes.map((outcome: string, i: number) => {
+            const poolAmt = Number(formatUnits(market.poolAmounts[i] || 0n, 6));
+            const pct = totalPool > 0 ? Math.round((poolAmt / totalPool) * 100) : 0;
+
             return (
-              <div key={market.id} className="rounded-lg bg-secondary/50 px-3 py-2">
-                <p className="text-xs text-foreground/70 mb-1.5 line-clamp-1">{market.question}</p>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {market.outcomes.map((o) => (
-                    <span key={o.id} className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-secondary text-foreground/70">
-                      {o.label} <span className="text-primary">{o.probability}%</span>
-                    </span>
-                  ))}
+              <div key={i} className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-1.5">
+                <span className="text-xs text-foreground/80">{outcome}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    ${poolAmt.toFixed(0)}
+                  </span>
+                  <span className="text-[10px] font-mono font-semibold text-primary">
+                    {pct}%
+                  </span>
                 </div>
               </div>
             );
@@ -69,90 +123,44 @@ const StreamCard = ({ stream }: { stream: Stream }) => {
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1">
               <TrendingUp className="w-3 h-3" />
-              ${(stream.totalVolume / 1000).toFixed(1)}k vol
+              ${totalPool.toFixed(0)} pool
             </span>
-            <span>{stream.markets.length} markets</span>
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {market.outcomes.length} outcomes
+            </span>
           </div>
-          <span className="flex items-center gap-1 text-xs text-primary font-semibold group-hover:text-glow transition-all">
-            Trade <ArrowRight className="w-3 h-3" />
-          </span>
         </div>
       </div>
     </Link>
   );
 };
 
-const HotMarketPill = ({ question, probability, label, streamName }: { question: string; probability: number; label: string; streamName: string }) => (
-  <div className="inline-flex items-center gap-2 rounded-full bg-secondary/60 border border-border px-3 py-1.5 text-xs whitespace-nowrap">
-    <span className="text-muted-foreground">{streamName}:</span>
-    <span className="text-foreground/80 max-w-[180px] truncate">{question}</span>
-    <span className="font-mono font-semibold text-primary">{label} {probability}%</span>
-  </div>
-);
-
 const Index = () => {
-  const [filter, setFilter] = useState<"all" | "live" | "upcoming">("all");
-
-  const filtered = MOCK_STREAMS.filter((s) =>
-    filter === "all" ? true : s.status === filter
-  );
-
-  // Collect hottest markets across all streams
-  const hotMarkets = MOCK_STREAMS
-    .flatMap((s) => s.markets.map((m) => ({ ...m, streamName: s.streamer.name })))
-    .sort((a, b) => b.totalVolume - a.totalVolume)
-    .slice(0, 5);
+  const { markets, isLoading } = useMarkets();
+  const { account } = useWallet();
 
   return (
     <div className="min-h-screen bg-background gradient-radial">
       <Header />
       <main className="container mx-auto px-4 py-8 max-w-5xl">
-        {/* Trending ticker */}
-        <div className="mb-8 overflow-x-auto scrollbar-hide">
-          <div className="flex items-center gap-2 mb-2">
-            <Zap className="w-3.5 h-3.5 text-primary" />
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Trending</span>
-          </div>
-          <div className="flex gap-2">
-            {hotMarkets.map((m) => (
-              <HotMarketPill key={m.id} question={m.question} probability={m.outcomes[0].probability} label={m.outcomes[0].label} streamName={m.streamName} />
-            ))}
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <MockStreamCard />
+          {!account ? (
+            <div className="col-span-full text-center py-8">
+              <p className="text-muted-foreground text-sm">Connect your wallet to view on-chain markets</p>
+            </div>
+          ) : isLoading ? (
+            <div className="col-span-full text-center py-8">
+              <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto mb-2" />
+              <p className="text-muted-foreground text-sm">Loading markets...</p>
+            </div>
+          ) : (
+            markets.map((market) => (
+              <MarketCard key={market.id} market={market} />
+            ))
+          )}
         </div>
-
-        {/* Filters */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex gap-2">
-            {(["all", "live", "upcoming"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                  filter === f
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                }`}
-              >
-                {f === "all" ? "All Streams" : f === "live" ? "🔴 Live" : "Starting Soon"}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Users className="w-3.5 h-3.5" />
-            {MOCK_STREAMS.filter((s) => s.status === "live").length} live now
-          </div>
-        </div>
-
-        {/* Stream grid */}
-        {filtered.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">No streams found</div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((stream) => (
-              <StreamCard key={stream.id} stream={stream} />
-            ))}
-          </div>
-        )}
       </main>
     </div>
   );

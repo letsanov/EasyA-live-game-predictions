@@ -75,7 +75,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const connect = async () => {
     if (typeof window.ethereum === 'undefined') {
-      alert('Please install MetaMask to use this app');
+      console.error('MetaMask not installed');
       return;
     }
 
@@ -97,7 +97,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setChainId(Number(network.chainId));
     } catch (error) {
       console.error('Error connecting wallet:', error);
-      alert('Failed to connect wallet. Please try again.');
+      console.error('Failed to connect wallet');
     } finally {
       setIsConnecting(false);
     }
