@@ -26,6 +26,14 @@ const ERC20_ABI = [
 export function useMarketContract() {
   const { signer, provider, account } = useWallet();
 
+  const ensureCorrectChain = async () => {
+    if (!provider) throw new Error('No provider');
+    const net = await provider.getNetwork();
+    if (Number(net.chainId) !== network.chainId) {
+      throw new Error(`Wrong network — please switch to ${network.chainId === 8453 ? 'Base' : 'chain ' + network.chainId} in MetaMask`);
+    }
+  };
+
   const getContract = () => {
     if (!signer) throw new Error('Wallet not connected');
     return new Contract(CONTRACT_ADDRESS, MARKETS_ABI, signer);
@@ -38,6 +46,7 @@ export function useMarketContract() {
 
   const ensureApproval = async (amount: bigint) => {
     if (!account) throw new Error('Wallet not connected');
+    await ensureCorrectChain();
     const usdc = getUSDC();
     const allowance = await usdc.allowance(account, CONTRACT_ADDRESS);
     if (allowance < amount) {
