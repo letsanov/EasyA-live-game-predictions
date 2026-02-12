@@ -1,10 +1,8 @@
+import './env.js';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { fastifyTRPCPlugin } from '@trpc/server/adapters/fastify';
 import { appRouter } from './router';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const server = Fastify({
   logger: true,
