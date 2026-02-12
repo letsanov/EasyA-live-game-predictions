@@ -114,7 +114,7 @@ const CreateMarketModal = ({ open, onOpenChange }: CreateMarketModalProps) => {
 
   const handleSelectPlayer = async (player: any) => {
     // Check if player is in live game
-    const liveGame = await fetch(`/games-alpha/trpc/players.checkLiveGame?input=${encodeURIComponent(JSON.stringify({ accountId: player.account_id, playerName: player.personaname }))}`).then(r => r.json());
+    const liveGame = await fetch(`${import.meta.env.BASE_URL}trpc/players.checkLiveGame?input=${encodeURIComponent(JSON.stringify({ accountId: player.account_id, playerName: player.personaname }))}`).then(r => r.json());
 
     const playerWithGame: Player = {
       ...player,

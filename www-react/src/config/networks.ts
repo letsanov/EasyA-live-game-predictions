@@ -32,7 +32,7 @@ export function loadNetworkConfig(): Promise<void> {
   if (_loadPromise) return _loadPromise;
   _loadPromise = (async () => {
     try {
-      const res = await fetch("/games-alpha/trpc/networkConfig");
+      const res = await fetch(`${import.meta.env.BASE_URL}trpc/networkConfig`);
       const json = await res.json();
       const data = json.result?.data;
       if (data) {
