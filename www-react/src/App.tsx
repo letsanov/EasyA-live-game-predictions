@@ -22,7 +22,7 @@ const App = () => {
     trpc.createClient({
       links: [
         httpBatchLink({
-          url: "/trpc",
+          url: "/games-alpha/trpc",
         }),
       ],
     })
@@ -41,7 +41,7 @@ const App = () => {
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <BrowserRouter>
+            <BrowserRouter basename="/games-alpha">
               <NetworkWarning />
               <Routes>
                 <Route path="/" element={<Index />} />

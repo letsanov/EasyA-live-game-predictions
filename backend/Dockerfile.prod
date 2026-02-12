@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY backend/package*.json ./
+
+# Install all deps (need tsx for runtime)
+RUN npm install
+
+# Copy source
+COPY backend/src ./src
+COPY backend/tsconfig.json ./tsconfig.json
+
+# Copy root .env loading works via env vars in compose, not file
+EXPOSE 3002
+
+CMD ["npx", "tsx", "src/index.ts"]

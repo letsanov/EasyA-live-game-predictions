@@ -1,0 +1,43 @@
+services:
+  games-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    container_name: games-backend
+    environment:
+      PORT: "3002"
+      BLOCKCHAIN_NETWORK: ${BLOCKCHAIN_NETWORK:-base}
+      ORACLE_PRIVATE_KEY: ${ORACLE_PRIVATE_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPEN_DOTA_API_KEY: ${OPEN_DOTA_API_KEY:-}
+    restart: unless-stopped
+    networks:
+      - wincoins_wincoins-network
+
+  games-oracle:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    container_name: games-oracle
+    command: ["npx", "tsx", "src/oracle/dota-oracle.ts"]
+    environment:
+      BLOCKCHAIN_NETWORK: ${BLOCKCHAIN_NETWORK:-base}
+      ORACLE_PRIVATE_KEY: ${ORACLE_PRIVATE_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPEN_DOTA_API_KEY: ${OPEN_DOTA_API_KEY:-}
+    restart: unless-stopped
+    networks:
+      - wincoins_wincoins-network
+
+  games-frontend:
+    build:
+      context: .
+      dockerfile: www-react/Dockerfile.prod
+    container_name: games-frontend
+    restart: unless-stopped
+    networks:
+      - wincoins_wincoins-network
+
+networks:
+  wincoins_wincoins-network:
+    external: true

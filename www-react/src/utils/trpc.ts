@@ -4,7 +4,7 @@ import type { AppRouter } from '../../../backend/src/router';
 export const trpc = createTRPCProxyClient<AppRouter>({
   links: [
     httpBatchLink({
-      url: '/trpc',
+      url: '/games-alpha/trpc',
     }),
   ],
 });
