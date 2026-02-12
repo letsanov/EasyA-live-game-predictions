@@ -1,3 +1,8 @@
+<img width="1413" height="836" alt="Screenshot 2026-02-12 at 6 04 28" src="https://github.com/user-attachments/assets/9378d78a-56f3-4eb4-a440-5065b5d8658a" />
+<img width="1410" height="538" alt="Screenshot 2026-02-12 at 6 03 55" src="https://github.com/user-attachments/assets/17494928-024b-420a-b2cd-595607c2c019" />
+<img width="1493" height="741" alt="Screenshot 2026-02-12 at 6 02 35" src="https://github.com/user-attachments/assets/a53b0b96-011c-41d6-9e2c-dfbd88c8ff77" />
+
+
 # 4sight.gg — Live Esports Prediction Markets
 
 **Live:** https://4sight.gg/games-alpha/
