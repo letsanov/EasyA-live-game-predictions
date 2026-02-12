@@ -1,5 +1,7 @@
 # 4sight.gg — Live Esports Prediction Markets
 
+**Live:** https://4sight.gg/games-alpha/
+
 Pari-mutuel prediction markets for live Dota 2 matches, with AI-driven oracle resolution.
 
 ## How It Works
