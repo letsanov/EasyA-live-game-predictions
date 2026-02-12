@@ -2,6 +2,11 @@
 
 **Live:** https://4sight.gg/games-alpha/
 
+Video walkthrough:
+Create and bet on market - https://www.loom.com/share/52d28c63c41e494eadef50b0446ee6e3
+Claiming functionality - https://www.loom.com/share/5f0a68d283904fb3b5f3423835589285
+I will make this into a full demo in a few minutes.
+
 Pari-mutuel prediction markets for live Dota 2 matches, with AI-driven oracle resolution.
 
 ## How It Works
