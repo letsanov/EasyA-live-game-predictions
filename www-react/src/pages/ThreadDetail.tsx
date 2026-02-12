@@ -171,7 +171,7 @@ const OUTCOME_COLORS = [
 
 const TradingCard = ({ market }: { market: MarketData }) => {
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
-  const [amount, setAmount] = useState(10);
+  const [amount, setAmount] = useState(1);
   const [isBetting, setIsBetting] = useState(false);
   const { makePrediction } = useMarketContract();
 
@@ -252,7 +252,7 @@ const TradingCard = ({ market }: { market: MarketData }) => {
       {isOpen && selectedOutcome !== null && (
         <div className="pt-3 border-t border-border space-y-3 animate-slide-up">
           <div className="flex items-center gap-2">
-            {[5, 10, 25, 50, 100].map((val) => (
+            {[1, 5, 10, 25, 100].map((val) => (
               <button
                 key={val}
                 onClick={() => setAmount(val)}

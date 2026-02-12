@@ -2,9 +2,6 @@ import { useWallet } from '@/contexts/WalletContext';
 import { Contract, MaxUint256 } from 'ethers';
 import { network } from '@/config/networks';
 
-const CONTRACT_ADDRESS = network.contractAddress;
-const USDC_ADDRESS = network.usdcAddress;
-
 // Markets.sol ABI (only the functions we need)
 const MARKETS_ABI = [
   "function createMarketWithSeed(string memory name, string[] memory outcomes, uint256 predictionDuration, address oracle, uint256 seedOutcomeIndex, uint256 seedAmount) external returns (uint256)",
@@ -36,22 +33,29 @@ export function useMarketContract() {
 
   const getContract = () => {
     if (!signer) throw new Error('Wallet not connected');
-    return new Contract(CONTRACT_ADDRESS, MARKETS_ABI, signer);
+    return new Contract(network.contractAddress, MARKETS_ABI, signer);
   };
 
   const getUSDC = () => {
     if (!signer) throw new Error('Wallet not connected');
-    return new Contract(USDC_ADDRESS, ERC20_ABI, signer);
+    return new Contract(network.usdcAddress, ERC20_ABI, signer);
   };
 
   const ensureApproval = async (amount: bigint) => {
     if (!account) throw new Error('Wallet not connected');
     await ensureCorrectChain();
     const usdc = getUSDC();
-    const allowance = await usdc.allowance(account, CONTRACT_ADDRESS);
+    console.log('Checking allowance for', account, 'spender:', network.contractAddress, 'USDC at:', network.usdcAddress);
+    const allowance = await usdc.allowance(account, network.contractAddress);
+    console.log('Current allowance:', allowance.toString(), 'needed:', amount.toString());
     if (allowance < amount) {
-      const tx = await usdc.approve(CONTRACT_ADDRESS, MaxUint256);
+      console.log('Requesting USDC approval...');
+      const tx = await usdc.approve(network.contractAddress, MaxUint256);
+      console.log('Approve TX sent:', tx.hash);
       await tx.wait();
+      console.log('Approve TX confirmed');
+    } else {
+      console.log('Already approved');
     }
   };
 
@@ -101,7 +105,7 @@ export function useMarketContract() {
   const getMarketsPage = async (offset: number, limit: number) => {
     if (!provider) throw new Error('No provider');
     // Use provider (not signer) for read-only calls
-    const contract = new Contract(CONTRACT_ADDRESS, MARKETS_ABI, provider);
+    const contract = new Contract(network.contractAddress, MARKETS_ABI, provider);
     const result = await contract.getMarketsPage(offset, limit);
 
     return {
@@ -138,19 +142,19 @@ export function useMarketContract() {
 
   const getUserPrediction = async (marketId: number, outcomeIndex: number, user: string) => {
     if (!provider) return BigInt(0);
-    const contract = new Contract(CONTRACT_ADDRESS, MARKETS_ABI, provider);
+    const contract = new Contract(network.contractAddress, MARKETS_ABI, provider);
     return await contract.getUserPrediction(marketId, outcomeIndex, user);
   };
 
   const hasClaimed = async (user: string, marketId: number): Promise<boolean> => {
     if (!provider) return false;
-    const contract = new Contract(CONTRACT_ADDRESS, MARKETS_ABI, provider);
+    const contract = new Contract(network.contractAddress, MARKETS_ABI, provider);
     return await contract.hasClaimed(user, marketId);
   };
 
   const getUSDCBalance = async () => {
     if (!account || !provider) return BigInt(0);
-    const usdc = new Contract(USDC_ADDRESS, ERC20_ABI, provider);
+    const usdc = new Contract(network.usdcAddress, ERC20_ABI, provider);
     return await usdc.balanceOf(account);
   };
 
