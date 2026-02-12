@@ -21,7 +21,9 @@ const switchNetwork = async () => {
               chainName: network.chainName,
               nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
               rpcUrls: [network.rpcUrl],
-              ...(network.blockExplorer ? { blockExplorerUrls: [network.blockExplorer] } : {}),
+              ...(network.blockExplorer
+                ? { blockExplorerUrls: [network.blockExplorer] }
+                : {}),
             },
           ],
         });
@@ -40,7 +42,7 @@ const NetworkWarning = () => {
   }
 
   return (
-    <div className="sticky top-14 z-40 bg-destructive/90 backdrop-blur-sm border-b border-destructive px-4 py-2">
+    <div className="top-14 z-40 bg-destructive/90 backdrop-blur-sm border-b border-destructive px-4 py-2">
       <div className="container mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-white">
           <span>Wrong network! Please switch to {network.chainName}</span>
