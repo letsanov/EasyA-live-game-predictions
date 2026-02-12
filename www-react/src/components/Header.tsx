@@ -9,7 +9,7 @@ import { formatUnits } from "ethers";
 
 const Header = () => {
   const location = useLocation();
-  const { account, connect, isConnecting } = useWallet();
+  const { account, connect, disconnect, isConnecting } = useWallet();
   const { getUSDCBalance } = useMarketContract();
   const [createOpen, setCreateOpen] = useState(false);
   const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
@@ -78,17 +78,21 @@ const Header = () => {
               New Prediction
             </Button>
             {account ? (
-              <div className="flex items-center gap-2 bg-secondary rounded-lg px-3 py-1.5">
-                <Wallet className="w-4 h-4 text-primary" />
+              <button
+                onClick={disconnect}
+                className="flex items-center gap-2 bg-secondary hover:bg-destructive/10 rounded-lg px-3 py-1.5 transition-colors group cursor-pointer"
+                title="Disconnect wallet"
+              >
+                <Wallet className="w-4 h-4 text-primary group-hover:text-destructive" />
                 {usdcBalance !== null && (
-                  <span className="font-mono font-semibold text-sm text-primary">
+                  <span className="font-mono font-semibold text-sm text-primary group-hover:text-destructive">
                     ${Number(usdcBalance).toLocaleString()}
                   </span>
                 )}
-                <span className="font-mono text-xs text-muted-foreground">
+                <span className="font-mono text-xs text-muted-foreground group-hover:text-destructive">
                   {truncateAddress(account)}
                 </span>
-              </div>
+              </button>
             ) : (
               <Button
                 size="sm"
