@@ -9,10 +9,12 @@
 
 **Live:** https://4sight.gg/games-alpha/
 
-Video walkthrough:
+Demo:
 Create and bet on market - https://www.loom.com/share/52d28c63c41e494eadef50b0446ee6e3
 Claiming functionality - https://www.loom.com/share/5f0a68d283904fb3b5f3423835589285
 I will make this into a full demo in a few minutes.
+
+Technical walkthrough:
 
 Pari-mutuel prediction markets for live Dota 2 matches, with AI-driven oracle resolution.
 
@@ -32,37 +34,33 @@ Pari-mutuel prediction markets for live Dota 2 matches, with AI-driven oracle re
 
 | Layer               | Technology                                                                       |
 | ------------------- | -------------------------------------------------------------------------------- |
-| **Smart Contracts** | Solidity (Markets.sol, MockUSDC.sol) on Hardhat local chain                      |
+| **Smart Contracts** | Solidity (Markets.sol) on Base                                                   |
+| **Payments**        | USDC (real stablecoins)                                                          |
 | **Backend**         | Node.js, TypeScript, tRPC, Fastify                                               |
 | **Frontend**        | React, Vite, TypeScript, Tailwind CSS, shadcn/ui                                 |
-| **Database**        | PostgreSQL + Drizzle ORM                                                         |
 | **Oracle**          | Centralized oracle service with LLM resolution (Gemini 2.0 Flash via OpenRouter) |
 | **Data**            | OpenDota API for player search + match results                                   |
-| **Monorepo**        | npm workspaces (`backend/`, `www-react/`)                                        |
 
 ## Architecture
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
-│   Frontend   │────▶│   Backend    │────▶│   PostgreSQL     │
-│  React/Vite  │     │  tRPC/Fastify│     │   (Drizzle ORM)  │
-│  :5173       │     │  :3001       │     └──────────────────┘
-└──────┬───────┘     └──────┬───────┘
-       │                    │
-       │              ┌─────▼──────┐
-       │              │  Indexer    │ ← listens to contract events
-       │              └────────────┘
+│   Frontend   │────▶│   Backend    │────▶│   OpenDota API   │
+│  React/Vite  │     │  tRPC/Fastify│     │  (player search) │
+└──────┬───────┘     └──────────────┘     └──────────────────┘
        │
        ▼
 ┌──────────────┐     ┌──────────────┐     ┌──────────────────┐
-│  Hardhat     │◀────│   Oracle     │────▶│   OpenDota API   │
-│  (EVM chain) │     │  (AI-driven) │     │  (match results) │
-│  :8545       │     └──────┬───────┘     └──────────────────┘
-└──────────────┘            │
+│    Base      │◀────│   Oracle     │────▶│   OpenDota API   │
+│  (on-chain)  │     │  (AI-driven) │     │  (match results) │
+└──────────────┘     └──────┬───────┘     └──────────────────┘
+                            │
                      ┌──────▼───────┐
                      │  OpenRouter  │
                      │  (Gemini LLM)│
                      └──────────────┘
+
+No database. No indexer. Frontend reads directly from the smart contract.
 ```
 
 ## AI Oracle
@@ -124,7 +122,6 @@ npm run oracle:backtest
 ### Prerequisites
 
 - Node.js 18+
-- PostgreSQL running locally
 - MetaMask browser extension
 
 ### Setup
@@ -135,21 +132,9 @@ npm install
 
 # Copy environment variables
 cp .env.example .env
-# Edit .env — fill in DATABASE_URL, ORACLE_PRIVATE_KEY, OPENROUTER_API_KEY
+# Edit .env — fill in BLOCKCHAIN_NETWORK, ORACLE_PRIVATE_KEY, OPENROUTER_API_KEY
 
-# Start local blockchain (keep running)
-npx hardhat node
-
-# Deploy contracts (in another terminal)
-npx hardhat run scripts/deploy.js --network localhost
-
-# Seed test data
-npm run seed
-
-# Push database schema
-npm run db:push --workspace=backend
-
-# Start everything (backend + frontend + indexer)
+# Start everything (backend + frontend)
 npm run dev
 ```
 
@@ -167,34 +152,31 @@ npm run oracle:backtest
 
 ```
 ├── contracts/          Solidity smart contracts
-│   ├── Markets.sol         Prediction market logic (create, bet, resolve, claim)
-│   └── MockUSDC.sol        Test USDC token
+│   └── Markets.sol         Prediction market logic (create, bet, resolve, claim)
 ├── backend/            Node.js backend
 │   └── src/
-│       ├── routers/        tRPC API routes
-│       ├── services/       Business logic + OpenDota API
+│       ├── routers/        tRPC API routes (player search, network config)
+│       ├── services/       OpenDota API integration
 │       ├── oracle/         AI oracle + backtest
-│       ├── indexer/        Blockchain event listener
-│       └── db/             Drizzle schema + migrations
+│       └── config/         Network configuration (localhost/baseSepolia/base)
 ├── www-react/          React frontend
 │   └── src/
-│       ├── pages/          Route pages (Markets, Portfolio, Thread)
+│       ├── pages/          Route pages (Index, Portfolio, ThreadDetail)
 │       ├── components/     UI components
-│       └── contexts/       Wallet + contract contexts
-├── scripts/            Hardhat deploy + seed scripts
-└── package.json        Monorepo root (npm workspaces)
+│       ├── hooks/          Contract interaction + market data
+│       └── contexts/       Wallet context
+├── scripts/            Hardhat deploy scripts
+└── docker-compose.games.yml   Production deployment
 ```
 
 ## Environment Variables
 
-| Variable                     | Required | Description                                        |
-| ---------------------------- | -------- | -------------------------------------------------- |
-| `DATABASE_URL`               | Yes      | PostgreSQL connection string                       |
-| `ORACLE_PRIVATE_KEY`         | Yes      | Private key for the oracle wallet                  |
-| `CENTRALIZED_ORACLE_ADDRESS` | Yes      | Public address of the oracle wallet                |
-| `OPENROUTER_API_KEY`         | Yes      | API key for OpenRouter (LLM access)                |
-| `OPEN_DOTA_API_KEY`          | No       | OpenDota API key (optional, increases rate limits) |
-| `CONTRACT_ADDRESS`           | Auto     | Set after deploying contracts                      |
+| Variable              | Required | Description                                        |
+| --------------------- | -------- | -------------------------------------------------- |
+| `BLOCKCHAIN_NETWORK`  | Yes      | `localhost`, `baseSepolia`, or `base`               |
+| `ORACLE_PRIVATE_KEY`  | Yes      | Private key for the oracle wallet                  |
+| `OPENROUTER_API_KEY`  | Yes      | API key for OpenRouter (LLM access)                |
+| `OPEN_DOTA_API_KEY`   | No       | OpenDota API key (optional, increases rate limits) |
 
 ## License
 
